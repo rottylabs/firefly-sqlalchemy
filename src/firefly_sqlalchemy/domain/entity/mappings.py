@@ -1,0 +1,2 @@
+class Mappings:
+    pass
