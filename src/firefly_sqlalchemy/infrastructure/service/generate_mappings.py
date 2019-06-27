@@ -2,29 +2,34 @@ from __future__ import annotations
 
 import datetime
 import importlib
-from dataclasses import is_dataclass, fields, Field
-from typing import Dict, List
+from dataclasses import is_dataclass, fields, Field, field, make_dataclass
+from typing import Dict, List, Type, get_type_hints
 
 import firefly as ff
-from sqlalchemy.orm import mapper
+from sqlalchemy.orm import mapper, relationship
 
 import firefly_sqlalchemy as sql
 import inflection
-from sqlalchemy import MetaData, Column, String, Text, Boolean, Float, Integer, DateTime, Date, Table
+from sqlalchemy import MetaData, Column, String, Text, Boolean, Float, Integer, DateTime, Date, Table, ForeignKey
 
 
 class GenerateMappings(ff.LoggerAware):
     _metadata_registry: sql.MetadataRegistry = None
 
     def __init__(self):
-        self.mappings = sql.Mappings()
+        self._mappings = sql.Mappings()
+        self._relationships = {}
+        self._join_tables = {}
 
     def __call__(self, context: ff.Context, context_map: ff.ContextMap):
         if context.name == 'firefly_sqlalchemy':
             return
 
         metadata = context_map.get_container(context.name).sqlalchemy_metadata
-        self._map_entities(self._load_entities(context.name), metadata)
+        entities = self._load_entities(context.name)
+        self._relationships = self._find_relationships(entities)
+        self._create_join_tables(metadata)
+        self._map_entities(entities, metadata)
         self._metadata_registry.add(context.name, metadata)
 
     def _load_entities(self, context_name: str) -> List[type]:
@@ -40,46 +45,166 @@ class GenerateMappings(ff.LoggerAware):
         for entity in entities:
             self._map_entity(entity, metadata)
 
-    def _map_entity(self, entity: type, metadata: MetaData):
+    def _map_entity(self, entity, metadata: MetaData):
+        annotations_ = get_type_hints(entity)
         table_name = inflection.tableize(entity.__name__)
         columns = []
-        for field in fields(entity):
+        possible_relationships = []
+        for field_ in fields(entity):
             args = [
-                field.name,
-                self._get_sqlalchemy_type(field)
+                field_.name,
+                self._get_sqlalchemy_type(entity, field_, annotations_)
             ]
+            if args[1] is None:
+                possible_relationships.append(field_)
+                continue
+
             kwargs = {}
-            if field.metadata.get('pk', False):
+            if field_.metadata.get('pk', False):
                 kwargs['primary_key'] = True
 
             columns.append(Column(*args, **kwargs))
 
-        table = Table(table_name, metadata, *columns)
-        setattr(self.mappings, table_name, table)
-        mapper(entity, table)
+        for field_ in possible_relationships:
+            if entity in self._relationships and field_.name in self._relationships[entity]:
+                config = self._relationships[entity][field_.name]
+                if config['rel'] == 'one':
+                    print(entity.__dict__)
+                    entity = make_dataclass(entity.__name__)
+                    setattr(entity, f'{field_.name}_id', field(default=None))
+                    columns.append(Column(
+                        f'{field_.name}_id',
+                        self._get_primary_key_type(config['type']),
+                        ForeignKey(
+                            f'{inflection.tableize(config["type"].__name__)}.'
+                            f'{self._get_primary_key_field(config["type"]).name}'
+                        )
+                    ))
 
-    def _get_sqlalchemy_type(self, field: Field):
-        if field.type == str:
-            if 'length' in field.metadata:
-                return String(length=field.metadata.get('length'))
+        table = Table(table_name, metadata, *columns)
+        setattr(self._mappings, table_name, table)
+
+        props = {}
+        if entity in self._relationships:
+            for field_name, config in self._relationships[entity].items():
+                if 'table' in config:
+                    relation_name, relation = self._find_many_relation(config['type'], entity)
+                    props[field_name] = relationship(
+                        config['type'],
+                        secondary=config['table'],
+                        back_populates=relation_name,
+                        cascade='all'
+                    )
+                elif config['rel'] == 'one':
+                    # TODO Fix this
+                    props[field_name] = relationship(
+                        config['type'],
+                        uselist=False
+                    )
+
+        mapper(entity, table, properties=props)
+
+    def _get_sqlalchemy_type(self, entity, field_: Field, annotations_: dict):
+        if entity in self._relationships and field_.name in self._relationships[entity]:
+            return None
+
+        type_ = annotations_[field_.name]
+
+        if type_ == str:
+            if 'length' in field_.metadata:
+                return String(length=field_.metadata.get('length'))
             else:
                 return Text
 
-        if field.type == bool:
+        if type_ == bool:
             return Boolean
 
-        if field.type == float:
-            if 'precision' in field.metadata:
-                return Float(precision=field.metadata.get('precision'))
+        if type_ == float:
+            if 'precision' in field_.metadata:
+                return Float(precision=field_.metadata.get('precision'))
             return Float
 
-        if field.type == int:
+        if type_ == int:
             return Integer
 
-        if field.type == datetime.datetime:
+        if type_ == datetime.datetime:
             return DateTime
 
-        if field.type == datetime.date:
+        if type_ == datetime.date:
             return Date
 
-        raise sql.UnknownColumnType(field.type)
+        raise sql.UnknownColumnType(field_.type)
+
+    def _find_relationships(self, entities: list):
+        relationships = {}
+
+        for entity in entities:
+            annotations_ = get_type_hints(entity)
+            for field_ in fields(entity):
+                try:
+                    self._get_sqlalchemy_type(entity, field_, annotations_)
+                    continue
+                except sql.UnknownColumnType as e:
+                    type_ = annotations_[field_.name]
+                    rel = 'one'
+                    if '_name' in type_.__dict__ and type_.__dict__['_name'] == 'List':
+                        type_ = type_.__dict__['__args__'][0]
+                        rel = 'many'
+
+                    if is_dataclass(type_):
+                        if entity not in relationships:
+                            relationships[entity] = {}
+                        relationships[entity][field_.name] = {
+                            'type': type_,
+                            'rel': rel,
+                        }
+                        continue
+
+                    raise e
+
+        return relationships
+
+    def _create_join_tables(self, metadata):
+        for entity, fields_ in self._relationships.items():
+            for field_name, config in fields_.items():
+                if 'table' in config:
+                    continue
+                if config['rel'] == 'many' and config['type'] in self._relationships:
+                    field = self._get_primary_key_field(config['type'])
+                    r_field_name, r_config = self._find_many_relation(config['type'], entity)
+                    if r_config['rel'] == 'many':
+                        l_field = self._get_primary_key_field(entity)
+                        table_name = f'{inflection.tableize(entity.__name__)}_{inflection.tableize(config["type"].__name__)}'
+                        join_table = Table(
+                            table_name,
+                            metadata,
+                            Column(
+                                f'{inflection.underscore(entity.__name__)}_{l_field.name}',
+                                self._get_sqlalchemy_type(entity, l_field, get_type_hints(entity)),
+                                ForeignKey(f'{inflection.tableize(entity.__name__)}.{l_field.name}')
+                            ),
+                            Column(
+                                f'{inflection.underscore(config["type"].__name__)}_{field.name}',
+                                self._get_sqlalchemy_type(config['type'], field, get_type_hints(config['type'])),
+                                ForeignKey(f'{inflection.tableize(config["type"].__name__)}.{field.name}')
+                            )
+                        )
+                        setattr(self._mappings, table_name, join_table)
+                        self._relationships[entity][field_name]['table'] = join_table
+                        self._relationships[config['type']][r_field_name]['table'] = join_table
+
+    def _find_many_relation(self, other_type: type, self_type: type):
+        for field_name, config in self._relationships[other_type].items():
+            if config['rel'] == 'many' and config['type'] == self_type:
+                return field_name, config
+
+    def _get_primary_key_field(self, entity):
+        for field_ in fields(entity):
+            if 'pk' in field_.metadata:
+                return field_
+
+    def _get_primary_key_type(self, entity):
+        annotations_ = get_type_hints(entity)
+        field_ = self._get_primary_key_field(entity)
+        if field_ is not None:
+            return self._get_sqlalchemy_type(entity, field_, annotations_)

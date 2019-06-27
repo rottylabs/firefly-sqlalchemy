@@ -14,5 +14,6 @@ class CreateTables(ff.Service):
     def __call__(self, context: str = None, **kwargs) -> Optional[Union[ffd.Message, object]]:
         for context_name, metadata in self._metadata_registry.all().items():
             if context is None or context == context_name:
+                metadata.drop_all()
                 metadata.create_all()
         return
