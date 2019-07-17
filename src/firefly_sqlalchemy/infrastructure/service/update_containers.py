@@ -8,38 +8,47 @@ from sqlalchemy.orm import sessionmaker, Session
 import firefly_sqlalchemy as fsi
 
 
-class UpdateContainers:
-    def __call__(self, context: ff.Context, context_map: ff.ContextMap):
-        config = self._find_sqlalchemy_config(context, context_map)
-        if config is None:
+@ff.listener(ff.ContextsLoaded)
+class UpdateContainers(ff.Service):
+    _context_map: ff.ContextMap = None
+
+    def __call__(self, **kwargs):
+        for context in self._context_map.contexts.values():
+            config = context.config
+            if isinstance(config, dict) and 'extensions' in config and 'firefly_sqlalchemy' in config['extensions']:
+                self._update_container(context, config)
+
+    def _update_container(self, context: ff.Context, config: dict):
+        container = context.container
+
+        c = container.__class__
+        c.__annotations__ = {}
+        c.sqlalchemy_engine_factory = lambda self: self.build(fsi.EngineFactory, **config)
+        c.__annotations__['sqlalchemy_engine_factory'] = fsi.EngineFactory
+        c.sqlalchemy_engine = lambda self: self.sqlalchemy_engine_factory.create(False)
+        c.__annotations__['sqlalchemy_engine'] = Engine
+        c.sqlalchemy_connection = lambda self: self.sqlalchemy_engine.connect()
+        c.__annotations__['sqlalchemy_connection'] = Connection
+        c.sqlalchemy_sessionmaker = lambda self: sessionmaker(bind=self.sqlalchemy_engine)
+        c.__annotations__['sqlalchemy_sessionmaker'] = sessionmaker
+        c.sqlalchemy_session = lambda self: self.sqlalchemy_sessionmaker()
+        c.__annotations__['sqlalchemy_session'] = Session
+        c.sqlalchemy_metadata = lambda self: MetaData(bind=self.sqlalchemy_engine)
+        c.__annotations__['sqlalchemy_metadata'] = MetaData
+
+        # TODO registry repository factory only for entities that are configured to use it.
+        self._context_map.extensions['firefly'].container.registry.set_default_factory(
+            container.build(fsi.RepositoryFactory)
+        )
+
+    def _find_sqlalchemy_config(self, context_name: str):
+        if context_name not in self._context_map.contexts:
             return
 
-        container = context_map.get_container(context.name)
-        if container is None:
-            return
+        config = self._context_map.get_context(context_name).config
+        if isinstance(config, dict) and 'extensions' in config and 'firefly_sqlalchemy' in config['extensions']:
+            return config.get('extensions').get('firefly_sqlalchemy')
 
-        container = container.__class__
-        container.__annotations__ = {}
-        container.sqlalchemy_engine_factory = lambda self: self.build(fsi.EngineFactory, **config)
-        container.__annotations__['sqlalchemy_engine_factory'] = fsi.EngineFactory
-        container.sqlalchemy_engine = lambda self: self.sqlalchemy_engine_factory.create(False)
-        container.__annotations__['sqlalchemy_engine'] = Engine
-        container.sqlalchemy_connection = lambda self: self.sqlalchemy_engine.connect()
-        container.__annotations__['sqlalchemy_connection'] = Connection
-        container.sqlalchemy_sessionmaker = lambda self: sessionmaker(bind=self.sqlalchemy_engine)
-        container.__annotations__['sqlalchemy_sessionmaker'] = sessionmaker
-        container.sqlalchemy_session = lambda self: self.sqlalchemy_sessionmaker()
-        container.__annotations__['sqlalchemy_session'] = Session
-        container.sqlalchemy_metadata = lambda self: MetaData(bind=self.sqlalchemy_engine)
-        container.__annotations__['sqlalchemy_metadata'] = MetaData
-        container.registry = fsi.Registry
-        container.__annotations__['registry'] = fsi.Registry
-
-    @staticmethod
-    def _find_sqlalchemy_config(context: ff.Context, context_map: ff.ContextMap):
-        if 'extensions' in context.config and 'firefly_sqlalchemy' in context.config['extensions']:
-            return context.config.get('extensions').get('firefly_sqlalchemy')
-
-        config = context_map.get_context('firefly_sqlalchemy').config
-        if 'default' in config:
+        config = self._context_map.get_context('firefly_sqlalchemy').config
+        if isinstance(config, dict) and 'default' in config:
             return config.get('default')

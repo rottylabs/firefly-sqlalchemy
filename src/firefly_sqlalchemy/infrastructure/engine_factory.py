@@ -11,7 +11,8 @@ class EngineFactory:
             db_password: str = None,
             db_host: str = '',
             db_type: str = 'sqlite',
-            db_port: str = ''
+            db_port: str = '',
+            **kwargs
     ):
         self.host = db_host
         self.name = db_name

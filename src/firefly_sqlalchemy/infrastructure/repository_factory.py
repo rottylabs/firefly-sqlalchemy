@@ -1,9 +1,10 @@
+import firefly as ff
 from sqlalchemy.orm import Session
 
 from .repository import SqlalchemyRepository
 
 
-class Registry(object):
+class RepositoryFactory(ff.RepositoryFactory):
     _session: Session = None
 
     def __init__(self):
