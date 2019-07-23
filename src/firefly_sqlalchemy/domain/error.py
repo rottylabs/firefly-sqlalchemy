@@ -7,3 +7,7 @@ class FireflySqlalchemyError(ff.FrameworkError):
 
 class UnknownColumnType(FireflySqlalchemyError):
     pass
+
+
+class MappingError(FireflySqlalchemyError):
+    pass

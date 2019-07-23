@@ -1,7 +1,7 @@
 import firefly as ff
 from sqlalchemy.orm import Session
 
-from .repository import SqlalchemyRepository
+from .sqlalchemy_repository import SqlalchemyRepository
 
 
 class RepositoryFactory(ff.RepositoryFactory):

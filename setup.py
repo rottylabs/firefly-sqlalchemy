@@ -15,7 +15,12 @@ setuptools.setup(
     url="https://github.com/firefly19/python-infrastructure-sqlalchemy",
     package_dir={'': 'src'},
     packages=setuptools.PEP420PackageFinder.find('src'),
-    install_requires=['sqlalchemy>=1.3.3', 'firefly-framework>=0.1'],
+    install_requires=[
+        'inflection>=0.3.1',
+        'pytest>=5.0.1',
+        'sqlalchemy>=1.3.3',
+        'firefly-framework>=0.1',
+    ],
     classifiers=[
         "Programming Language :: Python :: 3.6",
         "Operating System :: OS Independent",
