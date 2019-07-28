@@ -31,8 +31,11 @@ class EngineFactory:
                 cursor.execute("PRAGMA foreign_keys=ON")
                 cursor.close()
 
-            creator = lambda: sqlite3.connect('file::memory:?cache=shared', uri=True)
-            return create_engine('sqlite:///:memory:', creator=creator, echo=do_echo, poolclass=NullPool)
+            return create_engine(
+                'sqlite:///:memory:',
+                creator=lambda: sqlite3.connect('file::memory:?cache=shared', uri=True),
+                echo=do_echo
+            )
 
         return create_engine(self.get_connection_string(), echo=do_echo, poolclass=NullPool)
 

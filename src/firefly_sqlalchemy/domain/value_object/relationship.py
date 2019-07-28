@@ -66,3 +66,9 @@ class Relationship:
         if self.type != self.MANY_TO_MANY:
             raise sql.MappingError('Many to many relationships do not use a join table')
         self._join_table = value
+
+    @property
+    def needs_uselist(self):
+        fields = [self.field_a.name, self.field_b.name]
+        fields.sort()
+        return self.field_a.name == fields[0]

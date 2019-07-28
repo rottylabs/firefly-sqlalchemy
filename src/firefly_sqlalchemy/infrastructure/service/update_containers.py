@@ -20,19 +20,20 @@ class UpdateContainers(ff.Service):
 
     def _update_container(self, context: ff.Context, config: dict):
         container = context.container
+        params = config.get('extensions', {}).get('firefly_sqlalchemy', {})
 
         c = container.__class__
         c.__annotations__ = {}
-        c.sqlalchemy_engine_factory = lambda self: self.build(fsi.EngineFactory, **config)
+        c.sqlalchemy_engine_factory = lambda self: self.build(fsi.EngineFactory, **params)
         c.__annotations__['sqlalchemy_engine_factory'] = fsi.EngineFactory
         c.sqlalchemy_engine = lambda self: self.sqlalchemy_engine_factory.create(False)
         c.__annotations__['sqlalchemy_engine'] = Engine
-        c.sqlalchemy_connection = lambda self: self.sqlalchemy_engine.connect()
-        c.__annotations__['sqlalchemy_connection'] = Connection
+        c.sqlalchemy_connection = fsi.ConnectionFactory
+        c.__annotations__['sqlalchemy_connection'] = fsi.ConnectionFactory
         c.sqlalchemy_sessionmaker = lambda self: sessionmaker(bind=self.sqlalchemy_engine)
         c.__annotations__['sqlalchemy_sessionmaker'] = sessionmaker
-        c.sqlalchemy_session = lambda self: self.sqlalchemy_sessionmaker()
-        c.__annotations__['sqlalchemy_session'] = Session
+        c.sqlalchemy_session = fsi.SessionFactory
+        c.__annotations__['sqlalchemy_session'] = fsi.SessionFactory
         c.sqlalchemy_metadata = lambda self: MetaData(bind=self.sqlalchemy_engine)
         c.__annotations__['sqlalchemy_metadata'] = MetaData
 

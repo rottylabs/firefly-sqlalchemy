@@ -41,14 +41,18 @@ class Table:
         return Column(*args, **kwargs)
 
     def _needs_relation_column(self, field_: sql.EntityField):
-        return self._find_relationship(field_).type != sql.Relationship.MANY_TO_MANY
+        r = self._find_relationship(field_)
+        if r.type == sql.Relationship.ONE_TO_ONE and not r.needs_uselist:
+            return False
+
+        return not field_.is_list() and r.type != sql.Relationship.MANY_TO_MANY
 
     def _build_relation_column(self, field_: sql.EntityField):
         name = f'{field_.name}_id'
         setattr(self.entity.entity, name, None)
         relationship = self._find_relationship(field_)
         table_name = inflection.tableize(relationship.entity_b.entity.__name__)
-        return Column(name, String(), ForeignKey(
+        return Column(name, String(length=36), ForeignKey(
             f'{table_name}.{relationship.entity_b.primary_key_column.name}'
         ))
 

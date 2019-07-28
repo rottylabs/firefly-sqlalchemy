@@ -2,7 +2,7 @@ import pytest
 from sqlalchemy import Text
 
 from firefly_sqlalchemy import Entity
-from .entities import Widget, Address, Category, Part
+from tests.entities import Widget, Address, Category, Part
 
 
 def test_props(sut: Entity):

@@ -1,7 +1,6 @@
 import pytest
 
-from firefly_sqlalchemy import Relationship, Entity, JoinTable
-from .entities import Widget, Address
+from firefly_sqlalchemy import Relationship, JoinTable
 
 
 def test_props(sut: JoinTable):

@@ -7,14 +7,14 @@ import firefly as ff
 
 
 @dataclass
-class Address(ff.Entity):
+class Address(ff.AggregateRoot):
     id: str = ff.pk()
     name: str = ff.required()
     widgets: List[Widget] = ff.list_()
 
 
 @dataclass
-class Widget(ff.Entity):
+class Widget(ff.AggregateRoot):
     id: str = ff.pk()
     name: str = ff.required()
     addresses: List[Address] = ff.list_()

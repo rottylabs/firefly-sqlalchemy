@@ -32,15 +32,20 @@ class JoinTable:
         self.name = f'{terms[0]}_{terms[1]}'
         self.columns.append(Column(
             self.relationship.entity_a.foreign_id_column_name,
-            String(),
-            ForeignKey(self.relationship.entity_a.foreign_id_column_name)
+            String(length=36),
+            ForeignKey(self.relationship.entity_a.fk_column_string)
         ))
 
         self.columns.append(Column(
             self.relationship.entity_b.foreign_id_column_name,
-            String(),
-            ForeignKey(self.relationship.entity_b.foreign_id_column_name)
+            String(length=36),
+            ForeignKey(self.relationship.entity_b.fk_column_string)
         ))
 
     def __eq__(self, other):
+        if isinstance(other, str):
+            return other == self.name
         return other.name == self.name
+
+    def __hash__(self):
+        return hash(self.name)

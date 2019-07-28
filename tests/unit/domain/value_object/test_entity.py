@@ -1,7 +1,7 @@
 import pytest
 
 from firefly_sqlalchemy import Entity
-from .entities import Widget, Address
+from tests.entities import Widget, Address
 
 
 def test_props(sut: Entity):

@@ -29,15 +29,16 @@ class GenerateMappings(ff.Service, ff.LoggerAware):
             return
 
         metadata = context.container.sqlalchemy_metadata
-        entities = self._load_entities(context.name)
+        entities = self._load_entities(context.name, context.config)
         self._mappings.initialize(entities)
         self._mappings.add_mappings(metadata)
         self._metadata_registry.add(context.name, metadata)
 
-    def _load_entities(self, context_name: str) -> List[Type[E]]:
+    def _load_entities(self, context_name: str, config: dict) -> List[Type[E]]:
         self.debug(f'Loading entities for {context_name}')
         try:
-            module = importlib.import_module(f'{context_name}.domain.entity')
+            module_name = config.get('entity_module', '{}.domain.entity')
+            module = importlib.import_module(module_name.format(context_name))
             return [cls for cls in module.__dict__.values() if
                     inspect.isclass(cls) and issubclass(cls, ff.Entity) and is_dataclass(cls)]
         except ImportError:
