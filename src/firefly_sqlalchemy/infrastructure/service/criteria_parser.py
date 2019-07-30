@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Type, TypeVar
 
 import firefly as ff
-from sqlalchemy import or_, and_
+from sqlalchemy import or_, and_, null
 from sqlalchemy.orm import Query
 
 ENTITY = TypeVar('ENTITY', bound=ff.Entity)
@@ -44,3 +44,39 @@ class CriteriaParser:
             if isinstance(bo.lhv, ff.AttributeString):
                 return getattr(self.entity, bo.lhv) != bo.rhv
             return bo.lhv != getattr(self.entity, bo.rhv)
+
+        if bo.op == 'contains':
+            return getattr(self.entity, bo.lhv).like(bo.rhv.replace('*', '%'))
+
+        if bo.op == 'is':
+            if bo.rhv == 'None':
+                return getattr(self.entity, bo.lhv).is_(null())
+
+            if bo.rhv is False:
+                return getattr(self.entity, bo.lhv).is_(False)
+
+            if bo.rhv is True:
+                return getattr(self.entity, bo.lhv).is_(True)
+
+        if bo.op == 'in':
+            return getattr(self.entity, bo.lhv).in_(bo.rhv)
+
+        if bo.op == '>':
+            if isinstance(bo.lhv, ff.AttributeString):
+                return getattr(self.entity, bo.lhv) > bo.rhv
+            return bo.lhv > getattr(self.entity, bo.rhv)
+
+        if bo.op == '<':
+            if isinstance(bo.lhv, ff.AttributeString):
+                return getattr(self.entity, bo.lhv) < bo.rhv
+            return bo.lhv < getattr(self.entity, bo.rhv)
+
+        if bo.op == '>=':
+            if isinstance(bo.lhv, ff.AttributeString):
+                return getattr(self.entity, bo.lhv) >= bo.rhv
+            return bo.lhv >= getattr(self.entity, bo.rhv)
+
+        if bo.op == '<=':
+            if isinstance(bo.lhv, ff.AttributeString):
+                return getattr(self.entity, bo.lhv) <= bo.rhv
+            return bo.lhv <= getattr(self.entity, bo.rhv)

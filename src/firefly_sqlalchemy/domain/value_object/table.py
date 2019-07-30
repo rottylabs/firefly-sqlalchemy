@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Type, TypeVar, List
 
-from sqlalchemy import Column, String, ForeignKey
+from sqlalchemy import Column, String, ForeignKey, PrimaryKeyConstraint
 
 import firefly_sqlalchemy as sql
 import firefly as ff
@@ -18,6 +18,8 @@ class Table:
     relationships: List[sql.Relationship] = ff.required()
     name: str = None
     columns: List[Column] = ff.list_()
+    constraints: List = ff.list_()
+    _pks: List[str] = ff.list_()
 
     def __post_init__(self):
         self._initialize()
@@ -27,18 +29,21 @@ class Table:
         for field_ in self.entity.fields:
             st = field_.sqlalchemy_type
             if st is not None:
-                self.columns.append(self._build_regular_column(field_, st))
+                self._build_regular_column(field_, st)
             elif self._needs_relation_column(field_):
-                self.columns.append(self._build_relation_column(field_))
+                self._build_relation_column(field_)
+        self._build_pk()
 
-    @staticmethod
-    def _build_regular_column(field_: sql.EntityField, sqlalchemy_type: Type):
+    def _build_pk(self):
+        self.constraints.append(PrimaryKeyConstraint(*self._pks, name=f'{self.name}_pk'))
+
+    def _build_regular_column(self, field_: sql.EntityField, sqlalchemy_type: Type):
         args = [field_.name, sqlalchemy_type]
         kwargs = {}
         if field_.is_pk():
-            kwargs['primary_key'] = True
+            self._pks.append(field_.name)
 
-        return Column(*args, **kwargs)
+        self.columns.append(Column(*args, **kwargs))
 
     def _needs_relation_column(self, field_: sql.EntityField):
         r = self._find_relationship(field_)
@@ -52,9 +57,9 @@ class Table:
         setattr(self.entity.entity, name, None)
         relationship = self._find_relationship(field_)
         table_name = inflection.tableize(relationship.entity_b.entity.__name__)
-        return Column(name, String(length=36), ForeignKey(
+        self.columns.append(Column(name, String(length=36), ForeignKey(
             f'{table_name}.{relationship.entity_b.primary_key_column.name}'
-        ))
+        )))
 
     def _find_relationship(self, field_: sql.EntityField):
         for relationship in self.relationships:

@@ -17,6 +17,8 @@ class Address(ff.AggregateRoot):
 class Widget(ff.AggregateRoot):
     id: str = ff.pk()
     name: str = ff.required()
+    priority: int = ff.optional()
+    deleted: bool = ff.optional(default=False)
     addresses: List[Address] = ff.list_()
     category: Category = None
     part: Part = None

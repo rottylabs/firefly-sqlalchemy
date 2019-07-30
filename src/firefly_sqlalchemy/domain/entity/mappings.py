@@ -8,6 +8,7 @@ from sqlalchemy import Table
 from sqlalchemy.orm import relationship, mapper
 
 import firefly_sqlalchemy.domain as sql
+from tests.entities import Widget
 
 E = TypeVar('E', bound=ff.Entity)
 
@@ -45,7 +46,7 @@ class Mappings(ff.AggregateRoot):
             setattr(self, table.name, table.sql_table)
 
         for table in self.tables:
-            sql_table = Table(table.name, metadata, *table.columns)
+            sql_table = Table(table.name, metadata, *table.columns, *table.constraints)
             props = {}
             for r in table.relationships:
                 if r.type == sql.Relationship.MANY_TO_MANY:
@@ -64,7 +65,8 @@ class Mappings(ff.AggregateRoot):
                         kwargs['uselist'] = False
 
                     props[r.field_a.name] = relationship(*args, **kwargs)
-            mapper(table.entity.entity, sql_table, properties=props)
+
+            mapper(table.entity.entity, sql_table, properties=props, primary_key=sql_table.primary_key)
 
     def _create_relationship(self, entity: sql.Entity, field_: sql.EntityField):
         entity_b = None
