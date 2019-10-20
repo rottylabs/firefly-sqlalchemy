@@ -8,7 +8,6 @@ from sqlalchemy import Table
 from sqlalchemy.orm import relationship, mapper
 
 import firefly_sqlalchemy.domain as sql
-from tests.entities import Widget
 
 E = TypeVar('E', bound=ff.Entity)
 

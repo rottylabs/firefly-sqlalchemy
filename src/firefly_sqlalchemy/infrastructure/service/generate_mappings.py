@@ -12,7 +12,7 @@ import firefly_sqlalchemy as sql
 E = TypeVar('E', bound=ff.Entity)
 
 
-@ff.listener(ff.DomainEntitiesLoaded)
+@ff.on(ff.DomainEntitiesLoaded)
 class GenerateMappings(ff.Service, ff.LoggerAware):
     _metadata_registry: sql.MetadataRegistry = None
     _context_map: ff.ContextMap = None

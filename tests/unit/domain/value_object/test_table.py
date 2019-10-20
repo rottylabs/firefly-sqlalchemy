@@ -5,7 +5,7 @@ from firefly_sqlalchemy import Table, Relationship
 
 def test_props(sut: Table):
     assert sut.name == 'widgets'
-    assert len(sut.columns) == 4
+    assert len(sut.columns) == 6
 
 
 @pytest.fixture()

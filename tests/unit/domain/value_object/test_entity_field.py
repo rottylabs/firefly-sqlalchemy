@@ -1,12 +1,12 @@
 import pytest
-from sqlalchemy import Text
+from sqlalchemy import Text, String
 
 from firefly_sqlalchemy import Entity
 from tests.entities import Widget, Address, Category, Part
 
 
 def test_props(sut: Entity):
-    assert sut.fields[0].metadata == {'pk': True}
+    assert sut.fields[0].metadata == {'pk': True, 'length': 36}
     assert sut.fields[0].fk_column_string == 'widgets.id'
 
 
@@ -23,7 +23,7 @@ def test_type(sut: Entity):
 
 
 def test_sqlalchemy_type(sut: Entity):
-    assert sut.fields[0].sqlalchemy_type == Text
+    assert isinstance(sut.fields[0].sqlalchemy_type, String)
     assert sut.fields[1].sqlalchemy_type == Text
     assert sut.fields[2].sqlalchemy_type is None
     assert sut.fields[3].sqlalchemy_type is None

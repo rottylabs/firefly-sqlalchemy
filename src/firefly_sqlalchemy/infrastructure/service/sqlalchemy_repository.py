@@ -10,7 +10,7 @@ from sqlalchemy.exc import OperationalError, DatabaseError
 
 import firefly_sqlalchemy as sql
 
-T = TypeVar('T')
+T = TypeVar('T', bound=ffd.Entity)
 
 
 class SqlalchemyRepository(Repository[T]):

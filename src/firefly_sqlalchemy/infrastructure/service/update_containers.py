@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker, Session
 import firefly_sqlalchemy as fsi
 
 
-@ff.listener(ff.ContextsLoaded)
+@ff.on(ff.ContextsLoaded)
 class UpdateContainers(ff.Service):
     _context_map: ff.ContextMap = None
 
